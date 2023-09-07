@@ -1,0 +1,29 @@
+{{- if .Values.service.external.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    {{- toYaml .Values.service.external.annotations | nindent 4 }}
+  name: {{ include "pinpoint-collector.fullname" . }}-external
+  labels:
+    {{- include "pinpoint-collector.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.external.type }}
+  ports:
+    - port: {{ default .Values.service.grpc.agentPort .Values.service.external.grpc.agentPort }}
+      name: grpc-agent-external
+    - port: {{ default .Values.service.grpc.statPort .Values.service.external.grpc.statPort }}
+      name: grpc-stat-external
+    - port: {{ default .Values.service.grpc.spanPort .Values.service.external.grpc.spanPort }}
+      name: grpc-span-external
+    - port: {{ default .Values.service.thrift.agentPort .Values.service.external.thrift.agentPort }}
+      name: thrift-agent-external
+    - port: {{ default .Values.service.thrift.statPort .Values.service.external.thrift.statPort }}
+      name: thrift-stat-external
+    - port: {{ default .Values.service.thrift.spanPort .Values.service.external.thrift.spanPort }}
+      name: thrift-span-external
+  selector:
+    {{- include "pinpoint-collector.selectorLabels" . | nindent 4 }}
+
+{{- end }}

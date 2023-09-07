@@ -1,67 +1,102 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: {{ .Release.Namespace }}
-  labels:
-{{ include "pinpoint-collector.labels" . | indent 4 }}
   name: {{ include "pinpoint-collector.fullname" . }}
+  labels:
+    {{- include "pinpoint-collector.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-{{ include "pinpoint-collector.selectorLabels" . | indent 6 }}
+      {{- include "pinpoint-collector.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-{{ include "pinpoint-collector.labels" . | indent 8 }}
-      {{- with .Values.podAnnotations }}
+        {{- include "pinpoint-collector.labels" . | nindent 8 }}
       annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
     spec:
-      containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
-          envFrom:
-          - configMapRef:
-              name: {{ include "pinpoint-collector.fullname" .}}
-          ports:
-          - containerPort: 9991
-            protocol: TCP
-          - containerPort: 9992
-            protocol: TCP
-          - containerPort: 9993
-            protocol: TCP
-          - containerPort: 9994
-            protocol: TCP
-          - containerPort: 9995
-            protocol: UDP
-          - containerPort: 9996
-            protocol: UDP
-          livenessProbe:
-            failureThreshold: 3
-            tcpSocket:
-              port: 9991
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 2
-          readinessProbe:
-            failureThreshold: 3
-            tcpSocket:
-              port: 9991
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 2
-          resources:
-{{- toYaml .Values.resources | nindent 12 }}
-{{- with .Values.affinity }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
       affinity:
-{{- toYaml . | nindent 8 }}
-{{- end }}
-{{- with .Values.tolerations }}
+        {{- toYaml .Values.affinity | nindent 8 }}
       tolerations:
-{{- toYaml . | nindent 8 }}
-{{- end }}
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      hostAliases:
+        {{- toYaml .Values.hostAliases | nindent 8 }}
+      initContainers:
+        {{- toYaml .Values.initContainers | nindent 8 }}
+      containers:
+        - name: collector
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "/pinpoint/scripts/start-collector.sh"]
+          #command: ["/bin/bash"]
+          #args: ["-c", "trap : TERM INT; sleep infinity & wait"]
+          env:
+            - name: JAVA_OPTS
+              value: "{{ .Values.jvmOpts }}"
+            {{- if .Values.extraEnv }}
+            {{- toYaml .Values.extraEnv | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "pinpoint-collector.fullname" .}}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          ports:
+          - containerPort: {{ .Values.service.grpc.agentPort }}
+          - containerPort: {{ .Values.service.grpc.statPort }}
+          - containerPort: {{ .Values.service.grpc.spanPort }}
+          - containerPort: {{ .Values.service.thrift.agentPort }}
+          - containerPort: {{ .Values.service.thrift.statPort }}
+          - containerPort: {{ .Values.service.thrift.spanPort }}
+          {{- if .Values.probes.livenessEnabled }}
+          livenessProbe:
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            httpGet:
+              path: {{ .Values.probes.endpoint }}
+              port: {{ .Values.server.port }}
+          {{- end }}
+          {{- if .Values.probes.readinessEnabled }}
+          readinessProbe:
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            httpGet:
+              path: {{ .Values.probes.endpoint }}
+              port: {{ .Values.server.port }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /pinpoint/config
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: "{{ .Values.persistence.mountPath }}"
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | indent 12 }}
+            {{- end }}
+
+      {{- if .Values.extraContainers }}
+      {{- toYaml .Values.extraContainers | nindent 6 }}
+      {{- end }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pinpoint-collector.fullname" . }}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.pvcName }}
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | indent 6 }}
+        {{- end }}

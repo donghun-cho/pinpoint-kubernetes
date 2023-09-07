@@ -1,0 +1,21 @@
+{{- if .Values.service.external.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    {{- toYaml .Values.service.external.annotations | nindent 4 }}
+  name: {{ include "pinpoint-web.fullname" . }}-external
+  labels:
+    {{- include "pinpoint-web.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.external.type }}
+  ports:
+    - port: {{ .Values.service.external.port }}
+      name: web-external
+    - port: {{ .Values.service.external.clusterPort }}
+      name: cluster-external
+  selector:
+    {{- include "pinpoint-web.selectorLabels" . | nindent 4 }}
+
+{{- end }}

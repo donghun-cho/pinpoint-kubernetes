@@ -1,0 +1,50 @@
+image:
+  repository: pinpointdocker/pinpoint-hbase
+  tag: 2.5.2
+  pullPolicy: IfNotPresent
+
+  imagePullSecrets: []
+
+nodeSelector: {}
+
+affinity: {}
+
+tolerations: []
+
+podSecurityContext: {}
+
+containerSecurityContext: {}
+
+extraEnv: []
+
+probes:
+  livenessEnabled: true
+  readinessEnabled: true
+
+  initialDelaySeconds: 60
+  periodSeconds: 10
+
+persistence:
+  enabled: false
+  hbase:
+    accessMode: ReadWriteOnce
+    storageClass: ""
+    size: 200Gi
+
+resources:
+  requests:
+  limits:
+
+zookeeper:
+  enabled: true
+  quorum: zookeeper-headless
+
+  #sub chart values
+  fullnameOverride: zookeeper
+  replicaCount: 3
+  clusterDomain: cluster.local
+  persistence:
+    enabled: false
+    accessMode: ReadWriteOnce
+    storageClass: rbd-hdd
+    size: 100Gi

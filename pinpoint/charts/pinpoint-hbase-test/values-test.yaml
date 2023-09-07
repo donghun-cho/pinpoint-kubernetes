@@ -1,0 +1,39 @@
+
+podSecurityContext: {}
+
+containerSecurityContext: {}
+
+extraEnv: []
+
+probes:
+  livenessEnabled: false
+  readinessEnabled: false
+
+persistence:
+  enabled: false
+  hbase:
+    accessMode: ReadWriteOnce
+    storageClass: rbd-hdd
+    size: 200Gi
+
+resources:
+  requests:
+    cpu: 8
+    memory: 15Gi
+  limits:
+    cpu: 8
+    memory: 16Gi
+
+zookeeper:
+  enabled: true
+  quorum: pinpoint-zookeeper-headless
+
+  #sub chart values
+  fullnameOverride: pinpoint-zookeeper
+  replicaCount: 3
+  clusterDomain: ad1.io.navercorp.com
+  persistence:
+    enabled: false
+    accessMode: ReadWriteOnce
+    storageClass: rbd-hdd
+    size: 100Gi

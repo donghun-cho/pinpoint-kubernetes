@@ -1,11 +1,27 @@
+# Configuration for Docker Image
+image:
+  repository: pinpointdocker/pinpoint-collector
+  tag: 2.5.2
+  pullPolicy: Always
+
+imagePullSecrets: []
+securityContext: {}
+
+nameOverride: "pinpoint-collector"
 replicaCount: 1
-imagePullPolicy: Always
+
+updateStrategy:
+  type: RollingUpdate
+podManagementPolicy: Parallel
+
 ## Annotations to be added to Pinpoint Web pods
 ##
 podAnnotations: {}
-## Pod affinity
+podSecurityContext: {}
+
+nodeSelector: {}
+
 ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
-##
 affinity: {}
 
 ## Node tolerations for node-exporter scheduling to nodes with taints
@@ -17,29 +33,91 @@ tolerations: []
   #   value: "value"
   #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
 
-# Configuration for Docker Image 
-image:
-  repository: pinpointdocker/pinpoint-collector
-  tag: 2.1.0
+priorityClassName: ""
+
+hostAliases: []
+
+initContainers: []
 
 service:
-  type: "LoadBalancer"
-  nodePort:
-  clusterIP:
-
-receiver:
+  type: ClusterIP
+  name: collector
   grpc:
     agentPort: 9991
     statPort: 9992
     spanPort: 9993
   thrift:
-    basePort: 9994
+    agentPort: 9994
     statPort: 9995
     spanPort: 9996
-  
-profiles: release
-loggingLevelRoot: INFO
-clusterEnable: true
-flink:
-  enable: false
+  annotations: {}
 
+  external:
+    enabled: true
+    type: LoadBalancer
+    grpc:
+      agentPort:
+      statPort:
+      spanPort:
+    thrift:
+      agentPort:
+      statPort:
+      spanPort:
+    annotations: {}
+
+probes:
+  livenessEnabled: true
+  readinessEnabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  endpoint: "/serverTime"
+
+persistence:
+  enabled: false
+  pvcName: pinpoint-collector-pvc
+  accessMode: ReadWriteMany
+  storageClass: ""
+  size: 1Gi
+  mountPath: /pinpoint-collector
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+extraContainers: []
+extraVolumeMounts: []
+extraVolumes: []
+
+##########
+# another way of setting properties.
+# applied priority '.ENV' -> 'pinpoint-collector.properties'
+# ex) PINPOINT_ZOOKEEPER_ADDRESS overrride pinpoint.zookeeper.address
+##########
+extraEnv: []
+
+##########
+# collector configurations
+##########
+jvmOpts: "-Xms256M -Xmx1G -XX:+UseG1GC"
+
+profiles: release
+
+server:
+  port: 8081
+
+pinpoint:
+  zookeeper:
+    address: pinpoint-zookeeper
+
+extraProperties: |-
+  cluster.enable=false
+  
+  flink.cluster.enable=false
+  flink.cluster.zookeeper.address=""
+  
+  logging.file.path=logs
+  logging.level.root=INFO

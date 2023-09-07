@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    {{- toYaml .Values.service.annotations | nindent 4 }}
+  name: {{ include "pinpoint-web.fullname" . }}
+  labels:
+    {{- include "pinpoint-web.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      name: web
+    - port: {{ .Values.service.clusterPort }}
+      name: cluster
+  selector:
+    {{- include "pinpoint-web.selectorLabels" . | nindent 4 }}

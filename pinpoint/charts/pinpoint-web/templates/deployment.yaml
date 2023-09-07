@@ -3,61 +3,95 @@ kind: Deployment
 metadata:
   name: {{ template "pinpoint-web.fullname" . }}
   labels:
-{{ include "pinpoint-web.labels" . | indent 4 }}
+    {{- include "pinpoint-web.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-{{ include "pinpoint-web.selectorLabels" . | indent 6 }}
+      {{- include "pinpoint-web.labels" . | nindent 6 }}
   template:
     metadata:
       labels:
-{{ include "pinpoint-web.labels" . | indent 8 }}
-      {{- with .Values.podAnnotations }}
+        {{- include "pinpoint-web.labels" . | nindent 8 }}
       annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
     spec:
-      initContainers:
-       - name: wait-mysql
-         image: alpine
-         command: ["sh", "-c", "for i in $(seq 1 300); do nc -zvw1 pinpoint-mysql 3306 && exit 0 || sleep 3; done; exit 1"]
-      containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
-          ports:
-            - name: ui
-              containerPort: {{ .Values.serverPort }}
-              protocol: TCP
-          envFrom:
-          - configMapRef:
-              name: {{ template "pinpoint-web.fullname" . }}
-          - secretRef:
-              name: {{ template "pinpoint-web.fullname" . }}
-          livenessProbe:
-            failureThreshold: 3
-            tcpSocket:
-              port: {{ .Values.serverPort }}
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 2
-          readinessProbe:
-            failureThreshold: 3
-            tcpSocket:
-              port: {{ .Values.serverPort }}
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 2
-          resources:
-{{- toYaml .Values.resources | nindent 12 }}
-{{- with .Values.affinity }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
       affinity:
-{{- toYaml . | nindent 8 }}
-{{- end }}
-{{- with .Values.tolerations }}
+        {{- toYaml .Values.affinity | nindent 8 }}
       tolerations:
-{{- toYaml . | nindent 8 }}
-{{- end }}
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      hostAliases:
+        {{- toYaml .Values.hostAliases | nindent 8 }}
+      initContainers:
+        {{- toYaml .Values.initContainers | nindent 8 }}
+      containers:
+        - name: web
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "/pinpoint/scripts/start-web.sh"]
+          env:
+            - name: JAVA_OPTS
+              value: "{{ .Values.jvmOpts }}"
+            {{- if .Values.extraEnv }}
+            {{- toYaml .Values.extraEnv | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ template "pinpoint-web.fullname" . }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+            - containerPort: {{ .Values.service.clusterPort }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.probes.livenessEnabled }}
+          livenessProbe:
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            httpGet:
+              path: {{ .Values.probes.endpoint }}
+              port: {{ .Values.service.port }}
+          {{- end }}
+          {{- if .Values.probes.readinessEnabled }}
+          readinessProbe:
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            httpGet:
+              path: {{ .Values.probes.endpoint }}
+              port: {{ .Values.service.port }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /pinpoint/config
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: "{{ .Values.persistence.mountPath }}"
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+
+        {{- if .Values.extraContainers }}
+        {{- toYaml .Values.extraContainers | nindent 8 }}
+        {{- end }}
+
+      restartPolicy: Always
+      volumes:
+        - name: config
+          configMap:
+            name: {{ template "pinpoint-web.fullname" . }}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.pvcName }}
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}
